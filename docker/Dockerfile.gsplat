@@ -1,0 +1,91 @@
+FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
+
+# Set working directory
+WORKDIR /opt/gaussian-splatting
+
+# Environment setup
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+
+# Global CUDA build flags for PyTorch extensions
+ENV TORCH_CUDA_ARCH_LIST="12.0"
+ENV TORCH_NVCC_FLAGS="-Xfatbin=-compress-all"
+ENV TORCH_USE_CUDA_DSA=1
+ENV CUDA_LAUNCH_BLOCKING=1
+ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        python3 \
+        python3-pip \
+        python3-dev \
+        ninja-build \
+        libgl1-mesa-dev \
+        libx11-dev \
+        libglib2.0-0 \
+        nano && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create python and pip symlinks
+RUN ln -sf /usr/bin/python3 /usr/bin/python && \
+    ln -sf /usr/bin/pip3 /usr/bin/pip
+
+# Install PyTorch Nightly (cu121 includes sm_90 support)
+RUN pip install --upgrade pip && \
+    pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+
+# Clone Gaussian Splatting repo and initialize submodules
+RUN git clone https://github.com/graphdeco-inria/gaussian-splatting.git . && \
+    git submodule update --init --recursive
+
+# Remove unsupported compute_89 flags (some CUDA versions don't support them)
+#RUN find submodules/diff-gaussian-rasterization/ -type f -exec sed -i 's/-gencode=arch=compute_89[^ ]*//g' {} +
+
+# Patch gaussian_model.py to pass device instead of using args
+#RUN sed -i 's/def create_from_pcd(self, pcd, cameras, scene_extent):/def create_from_pcd(self, pcd, cameras, scene_extent, device="cuda"):/g' scene/gaussian_model.py && \
+#    sed -i 's/\.to(args\.data_device)/.to(device)/g' scene/gaussian_model.py && \
+#    sed -i 's/self.gaussians.create_from_pcd(.*)$/self.gaussians.create_from_pcd(scene_info.point_cloud, scene_info.train_cameras, self.cameras_extent, self.data_device)/' scene/__init__.py
+
+# Inject self.data_device = dataset.data_device into Scene.__init__
+#RUN sed -i '/def __init__(self, dataset, gaussians):/a\        self.data_device = dataset.data_device' scene/__init__.py
+
+# Install Python dependencies and CUDA extensions with sm_90 support
+RUN pip install tqdm plyfile joblib opencv-python && \
+    TORCH_CUDA_ARCH_LIST="12.0" FORCE_CUDA=1 pip install --no-build-isolation ./submodules/diff-gaussian-rasterization && \
+    TORCH_CUDA_ARCH_LIST="12.0" pip install --no-build-isolation ./submodules/simple-knn && \
+    TORCH_CUDA_ARCH_LIST="12.0" pip install --no-build-isolation ./submodules/fused-ssim
+
+## Fix logic so train.py accepts arbitrary scene folders, not hardcoded to sparse/0.
+RUN sed -i -E \
+  -e '/os\.path\.join/ s|"(sparse/0/[^"]+)"|"\1"|g' \
+  -e '/os\.path\.join/ s|"(sparse/0/)|"|g' \
+  -e '/os\.path\.join/ s|,\s*"sparse/0"||g' \
+  -e '/os\.path\.join/ s|"sparse/0/||g' \
+  /opt/gaussian-splatting/scene/dataset_readers.py && \
+  echo "✅ Fully patched 'sparse/0' in dataset_readers.py"
+
+
+# Remove "sparse" from os.path.join in a specific line of __init__.py
+RUN sed -i -E \
+  '/os\.path\.join\(args\.source_path,\s*["'\'']sparse["'\'']\)/ s|["'\'']sparse["'\'']|""|' \
+  /opt/gaussian-splatting/scene/__init__.py && \
+  echo "✅ Patched os.path.join(args.source_path, \"sparse\") in __init__.py"
+
+
+# Clone and install SpectacularAI point-cloud-tools
+RUN git clone https://github.com/SpectacularAI/point-cloud-tools.git /opt/point-cloud-tools && \
+    pip install -r /opt/point-cloud-tools/requirements.txt
+
+# Optional: Symlink convert.py into /usr/local/bin for easy use
+RUN ln -s /opt/point-cloud-tools/convert.py /usr/local/bin/convert-pointcloud && \
+    chmod +x /usr/local/bin/convert-pointcloud
+
+
+# Optional: Add non-root user
+RUN groupadd -g 1000 john && useradd -m -u 1000 -g 1000 john
+
+
+# Default command
+CMD ["/bin/bash"]

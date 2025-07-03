@@ -1,0 +1,54 @@
+---
+title: Catalog of recent projects
+---
+
+
+
+```{python}
+
+import os
+import json
+import pandas as pd
+from pathlib import Path
+
+# Base directory containing project folders
+projects_dir = Path("../projects")
+
+# List to accumulate all loaded data
+records = []
+
+# Traverse all subdirectories in the projects directory
+for project_path in projects_dir.iterdir():
+    if not project_path.is_dir():
+        continue
+
+    stats_dir = project_path / "colmap" / "stats"
+    if not stats_dir.exists():
+        continue
+
+    for json_file in stats_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            # Flatten JSON if needed and add project name and file name
+            flattened_data = {
+                **data,
+                "project": project_path.name,
+                "json_file": json_file.name
+            }
+            records.append(flattened_data)
+        except Exception as e:
+            print(f"❌ Error reading {json_file}: {e}")
+
+# Convert to DataFrame
+df = pd.DataFrame(records)
+
+subset = df[["Scenario", "Model ID", "Points3D", "Observations", "Mean Reprojection Error"]]
+subset
+```
+
+
+```{python}
+# Display basic structure
+##df
+```

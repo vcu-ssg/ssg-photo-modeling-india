@@ -1,0 +1,167 @@
+---
+title: Base project videos
+---
+
+
+The videos below are used to see the various projects.
+
+
+```{python}
+#| echo : false
+#| output: asis
+
+
+from pathlib import Path
+from IPython.display import display, HTML
+import shutil
+from pymediainfo import MediaInfo
+import json
+import pandas as pd
+from datetime import datetime
+import zoneinfo 
+import tabulate
+
+def extract_first(other_field, fallback=None):
+    return other_field[0] if isinstance(other_field, list) and other_field else fallback
+
+def convert_encoded_date_to_local(date_str, tz_name="America/New_York"):
+    """
+    Convert 'YYYY-MM-DD HH:MM:SS UTC' to local date and time strings.
+    Returns (local_date, local_time)
+    """
+    try:
+        # Parse and convert from UTC
+        dt_utc = datetime.strptime(date_str.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S")
+        dt_utc = dt_utc.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+        dt_local = dt_utc.astimezone(zoneinfo.ZoneInfo(tz_name))
+
+        local_date = dt_local.strftime("%Y-%m-%d")
+        local_time = dt_local.strftime("%I:%M:%S %p %Z")
+        return local_date, local_time
+    except Exception:
+        return None, None
+
+def extract_video_info(path: Path) -> dict:
+    media_info = MediaInfo.parse(path)
+    general = next((t for t in media_info.tracks if t.track_type == "General"), None)
+    video = next((t for t in media_info.tracks if t.track_type == "Video"), None)
+
+    # Parse and convert encoded date
+    raw_encoded_date = getattr(general, "encoded_date", None)
+    local_date,local_time = convert_encoded_date_to_local(raw_encoded_date) if raw_encoded_date else None
+
+    return {
+        "Name": path.name,
+        "Format": getattr(general, "format", None),
+        "Duration": extract_first(getattr(general, "other_duration", None),
+                                  f"{round(float(general.duration)/1000, 2)} s" if general and general.duration else None),
+        "Resolution": f"{video.width}x{video.height}" if video and video.width and video.height else None,
+        "Codec": getattr(video, "codec_id", None),
+        "Bitrate": extract_first(getattr(video, "other_bit_rate", None),
+                                 f"{round(float(video.bit_rate)/1000, 2)} kbps" if video and video.bit_rate else None),
+        "Frame rate": extract_first(getattr(video, "other_frame_rate", None),
+                                    video.frame_rate if video and video.frame_rate else None),
+        "Size": extract_first(getattr(general, "other_file_size", None)),
+        "Date Recorded": local_date,
+        "Time Recorded": local_time
+    }
+
+
+def splat_markdown_table(splats, video_name: str) -> str:
+    rows = []
+    for splat in splats:
+        link_text = splat.stem  # e.g., 'DJI_0145-png_1.00_1600_none-0-point_cloud'
+        if not link_text.startswith(video_name):
+            continue  # skip entries that don't match
+        link_url = splat.as_posix()
+        markdown_link = f"[{link_text}]({link_url})"
+        rows.append(f"| {markdown_link} |")
+    
+    if not rows:
+        return f"**No splats found starting with `{video_name}`**"
+    
+    header = "| Splat Files |"
+    separator = "|-------------|"
+    
+    return "\n".join([header, separator] + rows)
+
+
+thumbvids_dir = Path("../projects/thumbvids")
+output_dir = Path("../docs/data")
+output_dir.mkdir(parents=True, exist_ok=True)
+
+videos = sorted(thumbvids_dir.glob("*.MP4"))
+
+splats_dir = Path("gsp")
+splats = sorted(splats_dir.glob("*.qmd"))
+
+
+```
+```{python}
+#| echo : false
+#| output: asis
+
+html_blocks = []
+
+for video in videos:
+
+    dest = Path("../docs/data") / video.name
+    shutil.copy( video, dest )
+
+    original_video_path = Path("../videos") / video.name.replace("-thumb","")
+
+    media_info = MediaInfo.parse(original_video_path)
+    video_info = [track.to_data() for track in media_info.tracks]
+ 
+    if 0:
+        video_info = [track.to_data() for track in media_info.tracks]
+        description = json.dumps( video_info, indent=2 )
+    else:
+        video_info = extract_video_info( original_video_path )
+        description = json.dumps( video_info,indent=2)
+        df = pd.DataFrame(video_info.items(), columns=["Property", "Value"])
+        description = df.to_markdown( index=False )
+
+    video_link = Path("./data") / video.name
+    video_name = video_info["Name"].split(".",1)[0]
+    html_blocks.append(f"""
+
+## Video: {video.name.replace("-thumb","")}
+
+Below are key video properties and a thumbvid.  The thumbvid size is significantly
+reduced and the speed incrased.  The purpose of the thumbvid is to get an idea of what is being
+analyzed. A pre-specified block of time has been skipped from the beginning of the thumbvid, too.
+
+:::: {{.columns class="videocell"}}
+
+::: {{.column width=50%}}
+
+{description}
+
+:::
+
+::: {{.column width=50% class="videocell" }}
+
+{{{{< video
+{video_link}
+autoplay loop muted playsinline
+>}}}}
+
+:::
+
+::::
+
+:::: {{width=75%}}
+
+{splat_markdown_table( splats, video_name )}
+
+::::
+
+
+""")
+
+    ## Add list of related splats here.
+
+print( "\n".join(html_blocks))
+
+```

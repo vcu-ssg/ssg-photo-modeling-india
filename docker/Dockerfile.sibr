@@ -1,0 +1,60 @@
+FROM nvidia/cuda:12.9.1-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+
+# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git cmake build-essential \
+    libglew-dev libglfw3-dev libglm-dev \
+    libeigen3-dev libsdl2-dev libpng-dev \
+    libtiff-dev libjpeg-dev zlib1g-dev \
+    libboost-all-dev mesa-utils \
+    libxrandr-dev libxinerama-dev libxcursor-dev \
+    libxi-dev libx11-dev libxext-dev \
+    libminizip-dev nano && \
+    rm -rf /var/lib/apt/lists/*
+
+# -------------------------------
+# Build and install Assimp to /usr/local (standard system path) as STATIC libraries
+# -------------------------------
+WORKDIR /opt
+RUN git clone --depth 1 --branch master https://github.com/assimp/assimp.git && \
+    mkdir /opt/assimp/build && cd /opt/assimp/build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_STATIC_LIBS=ON \
+        -DASSIMP_BUILD_TESTS=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig # Update shared library cache (though less relevant for static)
+
+# -------------------------------
+# Clone and build SIBR Core
+# -------------------------------
+RUN git clone https://gitlab.inria.fr/sibr/sibr_core.git -b master
+
+WORKDIR /opt/sibr_core
+RUN mkdir build && cd build && \
+    # Set LD_LIBRARY_PATH during the cmake/make process.
+    # While Assimp is static, other libraries might be dynamic.
+    env LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}" \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="/usr/local" \
+        -DASSIMP_LIBRARIES=/usr/local/lib/libassimp.a && \
+    make -j$(nproc)
+
+# Add SIBR binaries to PATH
+ENV PATH="/opt/sibr_core/build/bin:${PATH}"
+# Ensure any dynamically linked libraries in /usr/local/lib are found at runtime
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+
+# Create non-root user
+RUN groupadd -g 1000 john && useradd -m -u 1000 -g 1000 john
+
+# Default shell
+WORKDIR /opt/sibr_core
+CMD ["/bin/bash"]

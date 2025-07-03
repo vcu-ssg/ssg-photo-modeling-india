@@ -1,0 +1,189 @@
+---
+title: Analysis - best parameters?
+---
+
+Questions
+
+1. What is the best format for storing images? PNG or JPG
+1. Should the raw images be filtered? (edge sharpening, grey scaling)
+1. What is best FPS?
+1. What is the best size for images?
+
+
+::: {.column-page-inset-right}
+```{python}
+#| echo: false
+
+base_video = "DJI_0145"
+
+import os
+import json
+import pandas as pd
+from pathlib import Path
+
+pd.set_option("display.max_columns", None)
+pd.set_option("display.max_rows", None)
+pd.set_option("display.width", None)
+pd.set_option("display.max_colwidth", None)
+
+# Base directory containing project folders
+projects_dir = Path("../projects")
+
+# List to accumulate all loaded data
+records = []
+
+columns1 = ["Format","Filter","FPS","MaxDim","Model ID","Images","Elapsed",
+"Observations", "Points3D", "quality", "Mean Track Length","Mean Observations per Image","Mean Reprojection Error"]
+
+# Traverse all subdirectories in the projects directory
+for project_path in projects_dir.iterdir():
+    if not project_path.is_dir():
+        continue
+
+    if base_video not in project_path.name:
+        continue
+
+    stats_dir = project_path / "colmap" / "stats"
+    if not stats_dir.exists():
+        continue
+
+    for json_file in stats_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            # Flatten JSON if needed and add project name and file name
+            flattened_data = {
+                **data,
+                "project": project_path.name,
+                "json_file": json_file.name
+            }
+            records.append(flattened_data)
+        except Exception as e:
+            print(f"❌ Error reading {json_file}: {e}")
+
+# Convert to DataFrame
+df = pd.DataFrame(records)
+
+subset = df[columns1]
+
+subset.head
+subset.to_excel("./analysis01.xlsx", index=False)
+subset
+```
+
+:::
+
+
+# Best format
+
+I'm evaluating filtering and formatting parameters for COLMAP.  I'm varying format (PNG,JPG), filterings (base/none, color, greyscale) FPS (frames per second) and max dimension of image.  On output, I'm gathering # of images, elapsed time of run, observations, points3d, quality (points3d/reprojection error), mean track length, mean observations per image and reprojection error.  Attached is the workbook containing these measures for each run.  I have 624 runs.
+
+I'm looking for the best combination of input values that provide the "best" sparse point cloud, while minimizing the elapsed time, disk space and required images.
+
+First, let's look at format (JPG or PNG).  Which is best?  In addition to considering the values themselves, also consider standard error and whether any of the metrics are different from each other.
+
+### Summary of 624 COLMAP runs – **PNG vs JPG**
+
+| metric (higher = better unless noted)  | **JPG (mean ± SE)** | **PNG (mean ± SE)** | p-value†   | practically important?           |
+| -------------------------------------- | ------------------- | ------------------- | ---------- | -------------------------------- |
+| Images loaded (lower better)           | **227 ± 13**        | 264 ± 12            | **0.041**  | JPG needs \~14 % fewer images    |
+| Elapsed time \[s] (lower better)       | 101.5 ± 14.1        | 102.5 ± 13.7        | 0.96       | No difference                    |
+| Points3D                               | 16 089 ± 1 067      | 17 731 ± 975        | 0.26       | Similar (PNG +10 %)              |
+| Mean reprojection error (lower better) | **0.403 ± 0.011**   | 0.450 ± 0.006       | **0.0003** | JPG has \~10 % lower error       |
+| “Quality” = Points3D / repr. err.      | 34 512 ± 1 733      | 36 045 ± 1 629      | 0.54       | Virtually identical              |
+| Mean track length                      | 7.37 ± 0.28         | **9.04 ± 0.23**     | **<0.001** | PNG tracks are longer            |
+| Mean obs / image                       | 465 ± 22            | **546 ± 20**        | **0.006**  | PNG sees more features per image |
+
+†Welch two-sample t test (α = 0.05). SE = standard error (σ / √n).
+
+---
+
+### How to read these results
+
+* **Geometric quality**
+
+  * PNG gives *slightly* denser clouds (≈ +10 % Points3D) and longer tracks, which suggests more matches per feature.
+  * However, it also yields a **significantly larger reprojection error**, so overall “quality” (Points3D / error) is statistically **indistinguishable** between formats.
+
+* **Cost factors**
+
+  * **Images** PNG reconstructions pulled in \~40 more frames on average, which directly increases processing time, disk footprint, and PNG files themselves are larger than lossy JPGs.
+  * **Runtime** No material difference in elapsed wall-clock time once images were loaded.
+
+---
+
+### Recommendation
+
+Because your goal is *the best sparse cloud **while also** minimising elapsed time, disk space, and required images*:
+
+* **Choose JPG** as the input format.
+
+  * It delivers nearly the same overall point-cloud quality, with **lower reprojection error**, and does so using **fewer source images** and smaller file sizes.
+* If you later decide that marginally longer tracks are critical (e.g. for downstream mesh colouring), you could re-run only the promising parameter sets in PNG—but the full 624-run sweep shows no decisive advantage that justifies the extra storage and acquisition overhead.
+
+---
+
+bring maxdim into the equation and evaluate them at the same time.  Can I use PNG with smaller images?
+
+Here’s a summary of the **PNG format runs**, grouped by `MaxDim` (image resolution):
+
+| MaxDim | Points3D ↑ | Quality (Pts3D / Err) ↑ | Reproj. Error ↓    | Images ↓ | Elapsed ↓ |
+| ------ | ---------- | ----------------------- | ------------------ | -------- | --------- |
+| 800    | \~15,286   | \~27,478                | **0.5221 ± 0.012** | **252**  | **161s**  |
+| 1024   | \~21,612   | \~38,337                | 0.5334 ± 0.010     | 264      | 171s      |
+| 1280   | \~28,275   | \~48,438                | 0.5578 ± 0.007     | 269      | 231s      |
+| 1600   | **36,475** | **60,620**              | 0.5746 ± 0.008     | 269      | 257s      |
+
+### Observations
+
+* **Reprojection error steadily increases** with image size (from 0.52 to 0.57), indicating **diminishing returns** in point precision.
+* **Point cloud density and quality do improve** with image size, but more slowly after 1280.
+* **Elapsed time and image count plateau** beyond 1024.
+
+### Recommendation
+
+If you're using **PNG**, but want to **save disk space and time**, then:
+
+* **MaxDim = 1024** offers a good compromise:
+
+  * You get 40% more 3D points than 800px with only a 2% hit in reprojection error.
+  * Gains beyond 1024 are less dramatic but come at significantly higher reprojection error and elapsed time.
+
+You **can use PNG with smaller images** (800–1024) and still get good results, especially if reprojection error and runtime are important.
+
+Would you like a similar joint evaluation of **JPG by MaxDim** next?
+
+Here's the analysis of **JPG format runs** grouped by `MaxDim` (image resolution):
+
+| MaxDim | Points3D ↑ | Quality (Pts3D / Err) ↑ | Reproj. Error ↓    | Images ↓ | Elapsed ↓ |
+| ------ | ---------- | ----------------------- | ------------------ | -------- | --------- |
+| 800    | \~10,846   | \~18,000                | **0.4393 ± 0.029** | **179**  | **143s**  |
+| 1024   | \~16,246   | \~26,733                | 0.4711 ± 0.027     | 195      | 158s      |
+| 1280   | \~28,845   | \~46,807                | 0.5619 ± 0.018     | 266      | 238s      |
+| 1600   | **37,354** | **59,290**              | 0.5942 ± 0.013     | 269      | 273s      |
+
+### JPG Observations
+
+* **Sharp drop in reprojection error** at 800 and 1024px — JPG shines most at these smaller dimensions.
+* Quality and Points3D increase with size, as expected, but reprojection error also increases.
+* **Image count stabilizes** at 1280 and above.
+
+---
+
+### Cross-format Takeaways (JPG vs PNG)
+
+| MaxDim   | Best Format         | Notes                                                                      |
+| -------- | ------------------- | -------------------------------------------------------------------------- |
+| **800**  | **JPG**             | Lower reprojection error and fewer images for similar output.              |
+| **1024** | **JPG**             | Better balance: fewer images, lower error, and nearly same quality as PNG. |
+| 1280+    | PNG slightly denser | But JPG has lower reprojection error and similar quality.                  |
+
+---
+
+### Recommendation
+
+* **Use JPG at 1024**: This offers excellent reprojection error, reduced image count, and solid point cloud density — a practical sweet spot.
+* **Avoid going above 1280 unless absolutely needed** for high-res meshes or downstream fidelity; gains diminish while costs rise.
+
+Would you like visual plots comparing PNG vs JPG across MaxDim to aid in decision-making?
+

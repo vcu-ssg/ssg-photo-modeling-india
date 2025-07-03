@@ -1,0 +1,206 @@
+
+
+/* General table styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.table tbody td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+table.table tbody tr {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Styles for the overall column container (the div.columns with class="videocell") */
+.columns.videocell {
+    display: flex;
+    align-items: stretch; /* Makes columns match height */
+}
+
+/* Styles for the individual column containing the video */
+.columns.videocell > .column.videocell {
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    background-color: transparent;
+
+    max-height: 400px; /* Capped height for the video column */
+
+    /* Make this column a flex container to CENTER video content within its height */
+    display: flex;
+    flex-direction: column;
+    align-items: center;   /* Center horizontally within the column */
+    justify-content: center; /* Center vertically within the column */
+}
+
+/* Styles for the .quarto-video wrapper div */
+.column.videocell .quarto-video {
+    width: 100%;
+    height: 100%; /* Take up the full available height from the column (up to max-height) */
+    display: flex; /* Use flexbox to center video within this container */
+    justify-content: center; /* Center horizontally (for portrait videos that are narrower) */
+    align-items: center;   /* Center vertically (for landscape videos that are shorter) */
+    background-color: transparent;
+    overflow: hidden;
+}
+
+/* Styles for the main Video.js player container */
+/* This is the div with class="video-js vjs-default-skin vjs-fluid" */
+.video-js.vjs-default-skin {
+    background-color: transparent !important;
+    width: 100% !important; /* Player fills the width of .quarto-video */
+    height: 100% !important; /* Player fills the height of .quarto-video (which is max-height constrained) */
+
+    /* Override vjs-fluid's aspect ratio padding hack */
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+
+    /* Ensure flex container properties to center the video content */
+    display: flex !important;
+    flex-direction: column !important; /* Stack actual video and controls */
+    align-items: center !important;   /* Center content (video) horizontally */
+    justify-content: center !important; /* Center content (video) vertically */
+    overflow: hidden;
+}
+
+/* Target the vjs-tech element (the actual <video> tag inside Video.js) */
+.video-js .vjs-tech {
+    background-color: transparent !important;
+    height: 100% !important; /* Prioritize height: Take 100% of available height within the player */
+    width: auto !important;   /* Let width be determined by aspect ratio and height */
+    max-width: 100% !important; /* Ensure it doesn't exceed 100% of player width */
+    object-fit: contain !important; /* Maintain aspect ratio, scale down, show whole video */
+    margin: auto !important; /* Centers horizontally and vertically if space remains, due to flex parent */
+}
+
+/* Control bar specific styling for Video.js */
+.video-js .vjs-control-bar {
+    position: absolute !important;
+    bottom: 0 !important; /* <--- CHANGED: Float to the very BOTTOM of the player */
+    top: auto !important; /* <--- ADDED: Remove top constraint */
+    width: 100% !important;
+    z-index: 10;
+    background-color: rgba(0, 0, 0, 0.7); /* Visible background */
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: none !important;
+}
+
+/* Hide the control bar fade-out behavior */
+.video-js.vjs-user-inactive .vjs-control-bar {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: none !important;
+}
+
+/* Poster image styling */
+.video-js .vjs-poster {
+    background-size: contain !important;
+    background-position: center !important; /* <--- CHANGED: Center poster both ways */
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+}
+
+/* Optional: Table column styling to match video column height and align content to top */
+.columns.videocell > .column:first-child {
+    max-height: 400px; /* Match the video's max-height for consistent row height */
+    overflow-y: auto;  /* Add scrollbar if table content exceeds max-height */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Align table content to the top */
+    justify-content: flex-start; /* Push table content to the top */
+}
+
+
+.viewer-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.threejs-container {
+    width: 100%;
+    //height: 45vh;
+    aspect-ratio: 1 / 1;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+}
+.viewer-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.viewer-block {
+    width: 45%;
+}
+
+.viewer-block h3 {
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+.threejs-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;  /* preserves aspect ratio */
+    display: block;       /* removes inline whitespace */
+}
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    table-layout: fixed;
+    word-wrap: break-word;
+}
+.stats-table th, .stats-table td {
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+    border: none;
+}
+.stats-table th {
+    font-weight: bold;
+}
+
+.splat-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.splat-block {
+    width: 100%;
+    max-width: 800px;
+    padding: 1em;
+    text-align: center;
+}
+
+.splat-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: 75%; /* 4:3 aspect ratio */
+    margin-top: 1em;
+}
+
+.splat-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}

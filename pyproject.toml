@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "ssg-photo-modeling-india"
+version = "0.1.0"
+description = ""
+authors = ["John Leonard <jdleonard@vcu.edu>"]
+readme = "README.md"
+packages = [{include = "scripts"}]
+# No "requires-python" here — put under [tool.poetry.dependencies]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+click = ">=8.2.1,<9.0.0"
+networkx = "^3.5"
+loguru = "^0.7.3"
+matplotlib = "^3.10.3"
+jupyter = "^1.1.1"
+plotly = "^6.1.2"
+pandas = "^2.3.0"
+open3d = "^0.19.0"
+pymeshlab = "^2023.12.post3"
+pymediainfo = "^7.0.1"
+tabulate = "^0.9.0"
+openpyxl = "^3.1.5"
+torch = "^2.7.1"
+opencv-python = "^4.11.0.86"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

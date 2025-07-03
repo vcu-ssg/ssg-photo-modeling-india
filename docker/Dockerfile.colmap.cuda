@@ -1,0 +1,74 @@
+# ----------------------------------------------------------------
+# CUDA-optimized COLMAP for PatchMatchStereo (5090 tuned)
+# SiftGPU is disabled (problematic on 5090/compute_89)
+# PatchMatchStereo will use CUDA
+# ----------------------------------------------------------------
+
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+
+# Base dependencies
+RUN apt-get update && apt-get install -y \
+    git cmake build-essential \
+    libboost-all-dev \
+    libeigen3-dev \
+    libflann-dev \
+    libfreeimage-dev \
+    libmetis-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libglew-dev \
+    qtbase5-dev \
+    libqt5opengl5-dev \
+    libcgal-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
+    libsqlite3-dev \
+    libceres-dev
+
+# Clone COLMAP source
+WORKDIR /opt
+RUN git clone --recursive https://github.com/colmap/colmap.git
+WORKDIR /opt/colmap
+RUN git checkout 3.11.1
+
+RUN rm -rf src/thirdparty/SiftGPU && \
+    mkdir -p src/thirdparty/SiftGPU && \
+    echo "void dummy() {}" > src/thirdparty/SiftGPU/dummy.cpp && \
+    echo "add_library(colmap_sift_gpu STATIC dummy.cpp)" > src/thirdparty/SiftGPU/CMakeLists.txt && \
+    sed -i 's@add_subdirectory(SiftGPU)@add_subdirectory(SiftGPU)@' src/thirdparty/CMakeLists.txt
+
+
+# --- PATCH SET FOR 5090 / CUDA 12.2 / COLMAP 3.11.1 ---
+
+# Patch colmap_mvs_cuda NVCC_FLAGS
+RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89@' src/colmap/mvs/CMakeLists.txt
+
+# Patch CMAKE_CUDA_ARCHITECTURES in src/colmap/mvs CMakeLists.txt
+RUN sed -i 's@set(CMAKE_CUDA_ARCHITECTURES native)@set(CMAKE_CUDA_ARCHITECTURES 86 89)@' src/colmap/mvs/CMakeLists.txt
+
+# Patch CMAKE_CUDA_ARCHITECTURES in top-level CMakeLists.txt
+RUN sed -i 's@set(CMAKE_CUDA_ARCHITECTURES native)@set(CMAKE_CUDA_ARCHITECTURES 86 89)@' CMakeLists.txt
+
+# Patch loose CUDA_ARCHITECTURES native in src/colmap/mvs CMakeLists.txt
+RUN sed -i 's@CUDA_ARCHITECTURES native@CUDA_ARCHITECTURES 86 89@' src/colmap/mvs/CMakeLists.txt
+
+# Patch set_target_properties for colmap_mvs_cuda target
+RUN sed -i 's@set_target_properties(colmap_mvs_cuda PROPERTIES CUDA_ARCHITECTURES native)@set_target_properties(colmap_mvs_cuda PROPERTIES CUDA_ARCHITECTURES 86 89)@' src/colmap/mvs/CMakeLists.txt
+
+# Build COLMAP with CUDA enabled
+RUN mkdir build && cd build && \
+    cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CUDA_FLAGS="-gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89" \
+    -DENABLE_CUDA=ON && \
+    make -j$(nproc) && \
+    make install
+
+# Optional: Add user john for cleaner prompt
+RUN groupadd -g 1000 john && useradd -m -u 1000 -g 1000 john
+
+# Default shell
+CMD ["bash"]

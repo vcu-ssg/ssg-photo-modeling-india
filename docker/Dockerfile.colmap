@@ -1,0 +1,68 @@
+# -------------------------------------------------------------------
+# COLMAP 3.11.1 build, clean and stable version (for NVIDIA 5090)
+# CUDA is disabled in SiftGPU via CMake patch
+# -------------------------------------------------------------------
+
+#FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
+
+# Environment setup
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    git cmake build-essential \
+    libboost-all-dev \
+    libeigen3-dev \
+    libflann-dev \
+    libfreeimage-dev \
+    libmetis-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libglew-dev \
+    qtbase5-dev \
+    libqt5opengl5-dev \
+    libcgal-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
+    libsqlite3-dev \
+    libceres-dev
+
+# Clone COLMAP
+WORKDIR /opt
+RUN git clone --recursive https://github.com/colmap/colmap.git
+WORKDIR /opt/colmap
+RUN git checkout 3.11.1
+
+# Patch SiftGPU CMakeLists.txt (if needed — safe to always run)
+#RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89@' /opt/colmap/src/thirdparty/SiftGPU/CMakeLists.txt || true
+
+# Patch src/CMakeLists.txt (main source of compute_native)
+#RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89@' /opt/colmap/src/CMakeLists.txt || true
+
+# Patch SiftGPU CMakeLists.txt to use sm_120 instead of compute_native
+#RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86@' /opt/colmap/src/thirdparty/SiftGPU/CMakeLists.txt || true
+
+# Patch main src/CMakeLists.txt to use sm_120
+#RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86@' /opt/colmap/src/CMakeLists.txt || true
+
+#RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90@g' /opt/colmap/CMakeLists.txt
+#RUN sed -i 's@-gencode arch=compute_native,code=sm_native@-gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90@g' /opt/colmap/src/thirdparty/SiftGPU/CMakeLists.txt
+
+RUN rm -rf build
+
+# Build COLMAP (note: CUDA_ENABLED=OFF disables CUDA usage internally)
+RUN mkdir build && cd build && \
+    cmake .. \
+    -DCUDA_ENABLED=ON \
+    -DCMAKE_CUDA_ARCHITECTURES="86;89;90" \
+    -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && \
+    make install
+
+# Optional: Add user john with UID=1000 and GID=1000 for clean prompt
+RUN groupadd -g 1000 john && useradd -m -u 1000 -g 1000 john
+
+# No entrypoint → allows `docker compose run colmap colmap ...`
+CMD ["bash"]

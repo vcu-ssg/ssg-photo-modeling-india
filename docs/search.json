@@ -1,0 +1,37 @@
+[
+  {
+    "objectID": "videos.html",
+    "href": "videos.html",
+    "title": "Base project videos",
+    "section": "",
+    "text": "The videos below are used to see the various projects."
+  },
+  {
+    "objectID": "prj/hanuman.html",
+    "href": "prj/hanuman.html",
+    "title": "Pipeline: hanuman",
+    "section": "",
+    "text": "Pipeline: hanuman\n\n\nGaussian Splat: Model 0 (iteration_15000)\n\n\n\n\n\n\n\n\n\nSparse Point Cloud: Model 0"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Greenbank Telescope Photogrammetry",
+    "section": "",
+    "text": "Videos - provides a listing of videos captured at the Greenbank Observatory\nPipelines - provides a listing of the different analysis pipelines conducted using the videos."
+  },
+  {
+    "objectID": "prj/index.html",
+    "href": "prj/index.html",
+    "title": "Listing of pipelines",
+    "section": "",
+    "text": "Images attribute\nValue\n\n\n\n\nProject\nhanuman\n\n\nImage Count\n227\n\n\n\n\n\nhanuman\n\n\n\n\n\n\n\n\n\nModel ID\n\n\n\n\n0\n\n\n\n\n\n\n \n\n\n\n\n\n\n\nModel ID\n\n\n\n\n0\n\n\n\n\n\n\n \n\n\n\n\nNo mvs models"
+  },
+  {
+    "objectID": "prj/index.html#hanuman",
+    "href": "prj/index.html#hanuman",
+    "title": "Listing of pipelines",
+    "section": "",
+    "text": "Images attribute\nValue\n\n\n\n\nProject\nhanuman\n\n\nImage Count\n227\n\n\n\n\n\nhanuman\n\n\n\n\n\n\n\n\n\nModel ID\n\n\n\n\n0\n\n\n\n\n\n\n \n\n\n\n\n\n\n\nModel ID\n\n\n\n\n0\n\n\n\n\n\n\n \n\n\n\n\nNo mvs models"
+  }
+]

@@ -1,0 +1,55 @@
+# Build OpenMVS + gltf-transform in CUDA container
+FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/New_York
+ENV PATH="/usr/local/bin/OpenMVS:$PATH"
+
+# Install build and library dependencies
+RUN apt-get update && apt-get install -y \
+    git build-essential cmake pkg-config \
+    libjpeg-dev libpng-dev libtiff-dev \
+    libeigen3-dev libboost-all-dev \
+    libglew-dev libglfw3-dev \
+    libvtk9-dev libopencv-dev \
+    libcgal-dev libcgal-qt5-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone VCG (needed by OpenMVS)
+WORKDIR /opt
+RUN git clone --recursive https://github.com/cdcseacave/VCG.git
+
+# Clone OpenMVS at stable tag
+RUN git clone --branch v2.3.0 --recursive https://github.com/cdcseacave/openMVS.git
+
+# Patch CGAL header includes for recent CGAL
+RUN sed -i 's@#include <CGAL/AABB_traits_3.h>@#include <CGAL/AABB_traits.h>@' /opt/openMVS/libs/MVS/SceneReconstruct.cpp
+RUN sed -i 's@#include <CGAL/AABB_triangle_primitive_3.h>@#include <CGAL/AABB_triangle_primitive.h>@' /opt/openMVS/libs/MVS/SceneReconstruct.cpp
+
+# Set CUDA_CUDA_LIBRARY to use the driver stub for linking
+ENV CUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so
+
+# Build OpenMVS
+WORKDIR /opt/openMVS_build
+RUN cmake -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DVCG_ROOT=/opt/VCG \
+    -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so \
+    -DCMAKE_CUDA_ARCHITECTURES=86\;89\;90 \
+    -DOpenMVS_USE_CUDA=ON \
+    -DOpenMVS_BUILD_TOOLS=ON \
+    ../openMVS
+RUN make -j$(nproc) && make install
+
+
+# Install Node and gltf-transform for embedding GLBs
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g @gltf-transform/cli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Optional local user for easier non-root use
+RUN groupadd -g 1000 john && useradd -m -u 1000 -g 1000 john
+
+CMD ["bash"]

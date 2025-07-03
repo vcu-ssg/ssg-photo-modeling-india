@@ -1,0 +1,217 @@
+---
+title: ply viewer
+format:
+  html:
+    toc: true
+    code-fold: true
+    include-in-header: # This is a good place to include external JS libraries
+      text: |
+        <style>
+          #threejs-container {
+            width: 100%;
+            height: 600px; /* Adjust height as needed */
+            background-color: #f0f0f0; /* Light background for visibility */
+            border: 1px solid #ccc;
+            margin-top: 20px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+          }
+        </style>
+---
+
+```{python}
+import shutil
+
+input = "../projects/DJI_0145-jpg_base_1.60_1600/colmap/sparse/0_clean.ply"
+output = "../docs/0_clean.ply"
+shutil.copyfile( input, output )
+
+```
+
+## Interactive Sparse Model
+
+```{=html}
+
+<div id="threejs-container" style="width: 50%; height: 50vh;"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+import { PLYLoader } from 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/PLYLoader.js?module';
+import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js?module';
+
+// === Scene Setup ===
+const container = document.getElementById('threejs-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0f0f0);
+
+const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+camera.position.z = 5;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
+
+// === Controls ===
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.screenSpacePanning = false;
+controls.minDistance = 0.1;
+controls.maxDistance = 500;
+
+// === Lighting ===
+scene.add(new THREE.AmbientLight(0x999999));
+const light = new THREE.DirectionalLight(0xffffff, 0.8);
+light.position.set(5, 10, 5);
+scene.add(light);
+
+// === Globals ===
+let modelGroup = null;
+const axisRings = [];
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let selectedAxis = null;
+let isDragging = false;
+let prevPointerX = null;
+
+// === Axis Circle Helper ===
+function createAxisCircle(radius, segments, color, rotation, axisName) {
+  const points = [];
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(radius * Math.cos(theta), radius * Math.sin(theta), 0));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({ color });
+  const circle = new THREE.LineLoop(geometry, material);
+  if (rotation) circle.rotation.set(rotation.x, rotation.y, rotation.z);
+  circle.userData.axis = axisName;
+  axisRings.push(circle);
+  return circle;
+}
+
+// === PLY Loader ===
+const loader = new PLYLoader();
+loader.load('./0_clean.ply', function (geometry) {
+  geometry.computeBoundingBox();
+
+  const material = new THREE.PointsMaterial({
+    size: 0.005,
+    vertexColors: true,
+  });
+
+  const points = new THREE.Points(geometry, material);
+  const center = new THREE.Vector3();
+  geometry.boundingBox.getCenter(center);
+  points.position.sub(center);
+
+  modelGroup = new THREE.Group();
+  modelGroup.add(points);
+  scene.add(modelGroup);
+
+  // Add axis rings
+  const radius = 1.5;
+  const segments = 64;
+  modelGroup.add(createAxisCircle(radius, segments, 0xff0000, new THREE.Euler(0, Math.PI / 2, 0), 'x'));
+  modelGroup.add(createAxisCircle(radius, segments, 0x00ff00, new THREE.Euler(Math.PI / 2, 0, 0), 'y'));
+  modelGroup.add(createAxisCircle(radius, segments, 0x0000ff, new THREE.Euler(0, 0, 0), 'z'));
+
+  // Position camera to fit model
+  const size = new THREE.Vector3();
+  geometry.boundingBox.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  camera.position.set(center.x, center.y, center.z + maxDim * 1.5);
+  controls.target.copy(new THREE.Vector3(0, 0, 0));
+  controls.update();
+});
+
+// === Keyboard Rotation (with toggling direction) ===
+const spinDirections = { x: 1, y: 1, z: 1 };
+const spinning = { x: false, y: false, z: false };
+const keys = {};
+
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (!['x', 'y', 'z'].includes(k)) {
+    keys[k] = true;
+    return;
+  }
+
+  if (!spinning[k]) {
+    spinDirections[k] *= -1; // Toggle direction
+    spinning[k] = true;
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (['x', 'y', 'z'].includes(k)) {
+    spinning[k] = false;
+  } else {
+    keys[k] = false;
+  }
+});
+
+// === Mouse Drag Rotation on Axis Rings ===
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  pointer.x = (event.clientX / container.clientWidth) * 2 - 1;
+  pointer.y = -(event.clientY / container.clientHeight) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(axisRings, false);
+
+  if (intersects.length > 0) {
+    selectedAxis = intersects[0].object.userData.axis;
+    prevPointerX = event.clientX;
+    isDragging = true;
+    controls.enabled = false;
+  }
+});
+
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (!isDragging || !selectedAxis || !modelGroup) return;
+
+  const delta = event.clientX - prevPointerX;
+  prevPointerX = event.clientX;
+  const angle = delta * 0.005;
+
+  if (selectedAxis === 'x') modelGroup.rotation.x += angle;
+  if (selectedAxis === 'y') modelGroup.rotation.y += angle;
+  if (selectedAxis === 'z') modelGroup.rotation.z += angle;
+});
+
+renderer.domElement.addEventListener('pointerup', () => {
+  isDragging = false;
+  selectedAxis = null;
+  controls.enabled = true;
+});
+
+// === Animation Loop ===
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (modelGroup) {
+    const rotSpeed = 0.08; // Faster rotation
+    if (spinning.x) modelGroup.rotation.x += rotSpeed * spinDirections.x;
+    if (spinning.y) modelGroup.rotation.y += rotSpeed * spinDirections.y;
+    if (spinning.z) modelGroup.rotation.z += rotSpeed * spinDirections.z;
+
+    const zoomSpeed = 0.1;
+    if (keys['arrowup'] || keys['='] || keys[']']) camera.position.z -= zoomSpeed;
+    if (keys['arrowdown'] || keys['-'] || keys['[']) camera.position.z += zoomSpeed;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// === Resize Handling ===
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+</script>
+
+
+```

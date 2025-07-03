@@ -1,0 +1,73 @@
+---
+title: ""
+---
+
+```{python}
+#| echo: false
+
+import shutil
+import pandas as pd
+
+from pathlib import Path
+from utils import ProjectFilesAndPaths
+
+splat_root = "DJI_0150-png_1.00_1600_none/gsplat/0/point_cloud"
+
+project_paths = ProjectFilesAndPaths( splat_root )
+
+```
+
+
+```{python}
+#| echo: false
+#| output: asis
+
+print(f"""
+
+<h1>{Path(splat_root).parts[0]}</h1>
+
+<div class="splat-row">
+<div class="splat-block">
+<h3>Final Gaussian Splat</h3>
+<div class="splat-wrapper">
+<canvas id="viewer1" class="splat-canvas"></canvas>
+</div>
+</div>
+</div>
+
+<hr/>
+
+<div class="viewer-row">
+<div class="viewer-block">
+<h3>Sparse Point Cloud</h3>
+<div id="viewer2" class="threejs-container"></div>
+</div>
+<div class="viewer-block">
+<h3>Initial video</h3>
+<div class="threejs-container">
+<video src="{project_paths.video_web_url}" autoplay loop muted playsinline />
+</div>
+</div>
+</div>
+
+""")
+
+```
+
+```{python}
+#| output: asis
+print(f"""
+
+<script type="module">
+  import {{ loadPLYViewer }} from "./js/ply_viewer.js";
+  import {{ loadSplatViewer }} from "./js/splat_viewer.js";
+
+
+  loadSplatViewer("viewer1","{project_paths.splat_web_url}")
+  loadPLYViewer("viewer2",  "{project_paths.sparse_web_url}");
+
+</script>
+
+""")
+
+```

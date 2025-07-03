@@ -1,0 +1,24 @@
+project:
+  type: website
+  output-dir: ../docs
+  resources:
+  - js/
+
+website:
+  title: "Greenbank"
+  search: false
+  navbar:
+    left:
+      - href: videos.qmd
+        text: Videos
+      - href: prj/index.qmd
+        text: Pipelines
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+  
+execute:
+  echo: false
