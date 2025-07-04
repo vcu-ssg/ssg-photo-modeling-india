@@ -44,10 +44,6 @@ endef
 # Mapper options
 # ---------------------------
 
-# ---------------------------
-# Mapper options
-# ---------------------------
-
 define mapper-fast
 	--Mapper.min_num_matches 12 \
 	--Mapper.abs_pose_min_num_inliers 30 \
@@ -90,6 +86,27 @@ define mapper-highquality
 	--Mapper.ba_local_max_num_iterations 40
 endef
 
+# --------------------------
+# point filtering options
+# --------------------------
+
+define pointfilter-default
+	--min_track_len 5 \
+	--max_reproj_error 2.0 \
+	--min_tri_angle 5.0
+endef
+
+define pointfilter-strict
+	--min_track_len 8 \
+	--max_reproj_error 1.0 \
+	--min_tri_angle 8.0
+endef
+
+define pointfilter-relaxed
+	--min_track_len 3 \
+	--max_reproj_error 4.0 \
+	--min_tri_angle 3.0
+endef
 
 # ---------------------------
 # Pipeline recipes
@@ -175,12 +192,11 @@ define recipe-colmap-model-transformer
 	if [ -n "$$TRANSFORM_STRING" ]; then \
 		echo "Transform string for $(call ELEM5,$(@),2): $$TRANSFORM_STRING"; \
 	else \
-		echo "No transform string defined for $(call ELEM5,$(@),2). Aborting."; \
-		exit 1; \
+		echo "No transform string defined for $(call ELEM5,$(@),2)."; \
 	fi; \
 	echo ">>> Generating transform file at $(@)/0_aligned/transform.txt"; \
 	mkdir -p $(@)/0_aligned; \
-	poetry run python scripts/generate_transform.py $$TRANSFORM_STRING > $(@)/0_aligned/transform.txt; \
+	poetry run python scripts/generate-transform.py $$TRANSFORM_STRING > $(@)/0_aligned/transform.txt ; \
 	echo ">>> Transform file contents:"; \
 	cat $(@)/0_aligned/transform.txt; \
 	echo ">>> Running colmap model_transformer with generated transform"; \
@@ -195,6 +211,23 @@ define recipe-colmap-model-transformer
 	mv $(@)/0 $(@)/0_before_transform; \
 	echo ">>> Moving aligned model to $(@)/0"; \
 	mv $(@)/0_aligned $(@)/0
+endef
+
+
+define recipe-colmap-pointfilter
+	echo "COLMAP point_filtering with options: $(1)"; \
+	mkdir -p $(@)/0_filtered; \
+	docker compose -f ./docker/docker-compose.yml \
+	run --rm --user 1000:1000 colmap \
+	colmap point_filtering \
+		--input_path /$(@)/0 \
+		--output_path /$(@)/0_filtered \
+		$(1); \
+	echo ">>> Backing up pre-filtered model to $(@)/0_before_filter"; \
+	rm -rf $(@)/0_before_filter; \
+	mv $(@)/0 $(@)/0_before_filter; \
+	echo ">>> Moving filtered model to $(@)/0"; \
+	mv $(@)/0_filtered $(@)/0
 endef
 
 
@@ -243,6 +276,7 @@ endef
 # ---------------------------
 # Dynamic master recipe
 # ---------------------------
+
 define recipe-colmap-model
 	@echo "==================================================================="; \
 	echo "COLMAP MODEL: $(call ELEM5,$(@),4)"; \
@@ -272,20 +306,25 @@ define recipe-colmap-model
 		MASK_PATH_OPT=""; \
 	fi; \
 	\
+	if echo "$$QUALITY_STR" | grep -q "filter=strict"; then POINTFILTER_OPTS="$(pointfilter-strict)"; \
+	elif echo "$$QUALITY_STR" | grep -q "filter=relaxed"; then POINTFILTER_OPTS="$(pointfilter-relaxed)"; \
+	else POINTFILTER_OPTS="$(pointfilter-default)"; fi; \
+	\
 	echo "Extractor opts: $$EXTRACT_OPTS"; \
 	echo "Matcher opts: $$MATCH_OPTS"; \
 	echo "Mapper opts: $$MAPPER_OPTS"; \
 	echo "Mask path: $$MASK_PATH_OPT"; \
+	echo "Point filtering opts: $$POINTFILTER_OPTS"; \
 	\
 	$(call recipe-colmap-prepare-images,$(colmap-model-$(call ELEM5,$(@),4))); \
 	\
 	$(call recipe-colmap-feature-extracter,$$EXTRACT_OPTS,$$MASK_PATH_OPT); \
 	$(call recipe-colmap-sequential-matcher,$$MATCH_OPTS); \
-	if echo "$$QUALITY_STR" | grep -q "filter=clean"; then \
-		$(recipe-colmap-cleaner-1); \
-	fi; \
 	$(call recipe-colmap-mapper,$$MAPPER_OPTS); \
+	$(recipe-colmap-model-converter); \
 	$(recipe-colmap-model-transformer); \
+	$(recipe-colmap-model-converter); \
+	$(call recipe-colmap-pointfilter,$$POINTFILTER_OPTS); \
 	$(recipe-colmap-model-converter); \
 	$(recipe-add-normals-to-ply); \
 	$(recipe-colmap-complete-folders); \
@@ -295,4 +334,3 @@ define recipe-colmap-model
 	echo "Target: $(@)"; \
 	echo "Depend: $(firstword $(^))"
 endef
-

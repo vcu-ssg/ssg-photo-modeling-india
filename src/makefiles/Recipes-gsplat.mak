@@ -8,9 +8,6 @@
 
 define gsplat-quality-fast
     --iterations 5000 \
-    --position_lr_init 0.05 --position_lr_final 0.01 \
-    --densify_from_iter 1000 --densify_until_iter 4000 \
-    --densification_interval 200 --percent_dense 0.1 \
     --sh_degree 2
 endef
 

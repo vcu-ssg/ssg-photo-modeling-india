@@ -10,11 +10,11 @@ include src/makefiles/Recipes.mak
 project-roots := hanuman
 
 hanuman.sources := Dec13at10-33PM-HanumanClose-poly-20250703T115334Z-1-001.zip hunaman.md
-hanuman.transform := X -45 Y 90 Z 90
+hanuman.transform := TX 0 TY 0 TZ 0 RX 90 RY 90 RZ 90 S 1
 
 model-roots := 0
-colmap-model-0 := mask=open extract=default match=fast mapper=fast
-gsplat-model-0 := quality=default
+colmap-model-0 := mask=open extract=default match=fast mapper=fast filter=default
+gsplat-model-0 := quality=fast
 
 
 test: projects/hanuman/colmap/0/rotate

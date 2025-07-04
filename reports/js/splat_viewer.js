@@ -19,11 +19,15 @@ export async function loadSplatViewer(containerId, pathToSplatFile) {
   const renderer = new SPLAT.WebGLRenderer(canvas);
   const scene = new SPLAT.Scene();
   const camera = new SPLAT.Camera();
-  camera.position = new SPLAT.Vector3(0, 0, 5);
+
+  camera.position = new SPLAT.Vector3(5, 0, 0);  // move camera along Y axis
+  
 
   const controls = new SPLAT.OrbitControls(camera, canvas);
 
   const splat = new SPLAT.Splat(SPLAT.SplatData.Deserialize(binaryData));
+
+
   scene.addObject(splat);
 
   function resize() {
