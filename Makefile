@@ -2,6 +2,7 @@
 
 include src/makefiles/Sources-sync.mak
 include src/makefiles/Recipes-utils.mak
+include src/makefiles/Recipes-containers.mak
 include src/makefiles/Recipes-colmap.mak
 include src/makefiles/Recipes-gsplat.mak
 include src/makefiles/Recipes.mak
@@ -10,16 +11,12 @@ include src/makefiles/Recipes.mak
 project-roots := hanuman
 
 hanuman.sources := Dec13at10-33PM-HanumanClose-poly-20250703T115334Z-1-001.zip hunaman.md
-hanuman.transform := TX 0 TY 0 TZ 0 RX 90 RY 90 RZ 90 S 1
+hanuman.colmap.transform := TX 0 TY 0 TZ 0 RX 0 RY 0 RZ 0 S 1
+hanuman.gsplat.transform := --rx 90 --ry 90 --rz -120 --tx 0
 
 model-roots := 0
-colmap-model-0 := mask=open extract=default match=fast mapper=fast filter=default
-gsplat-model-0 := quality=fast
-
-
-test: projects/hanuman/colmap/0/rotate
-.PHONY: projects/hanuman/colmap/0/rotate
-projects/hanuman/colmap/0/rotate : ; $(recipe-colmap-model-aligner)
+colmap-model-0 := mask=open extract=default match=default mapper=default filter=default
+gsplat-model-0 := quality=default
 
 
 $(foreach project,$(project-roots),$(eval projects/$(project)/sources : ; $$(recipe-download-project-sources)))
@@ -29,25 +26,6 @@ $(foreach project,$(project-roots),$(foreach model,$(model-roots),$(eval project
 
 realclean:
 	rm -fr projects/
-
-## Interactive shell targets for debugging
-
-container-roots := colmap gsplat openmvg openmvs
-
-# rebuild containers - clean old image prune layers
-$(foreach container,$(container-roots),rebuild-$(container)) :
-	docker builder prune --all --force
-	docker rmi -f $(call ELEM1,$(@),2) || true
-	make build-$(call ELEM1,$(@),2)
-
-# build containers
-$(foreach container,$(container-roots),build-$(container)) :
-	 COMPOSE_BAKE=true docker compose -f ./docker/docker-compose.yml build $(call ELEM1,$(@),2)
-
-# open shell inside container
-$(foreach container,$(container-roots),shell-$(container)) :
-	docker compose -f ./docker/docker-compose.yml run --rm $(call ELEM1,$(@),2) bash
-
 
 
 build-reports:
@@ -61,3 +39,5 @@ build-reports:
 
 preview : build-reports
 	cd reports && poetry run quarto preview
+
+

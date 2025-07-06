@@ -10,6 +10,9 @@ from pathlib import Path
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from scripts.pymeshlab_utils import center_txt_points3d, build_transform_matrix,  \
+    transform_images_txt, transform_points3D_txt, compute_blender_camera_transform, add_axes
+
 @click.group()
 def cli():
     """GBT 3D Pipeline CLI"""
@@ -340,6 +343,80 @@ def generate_masks(images_dir, output_mask_dir, output_masked_image_dir, filter,
         filter
     )
 
+
+@cli.command()
+@click.option("--input-file", "-i", type=click.Path(exists=True), required=True, help="Input PLY file")
+@click.option("--output-file", "-o", type=click.Path(), required=True, help="Output PLY file")
+@click.option("--rx", default=0.0, help="Rotation around X axis in degrees")
+@click.option("--ry", default=0.0, help="Rotation around Y axis in degrees")
+@click.option("--rz", default=0.0, help="Rotation around Z axis in degrees")
+def center_and_rotate(input_file, output_file, rx, ry, rz):
+    """
+    Translate point cloud centroid to (0,0,0),
+    optionally rotate by RX,RY,RZ degrees,
+    and write to OUTPUT_PLY_FILE.
+    """
+    rotation = None
+    if any([rx, ry, rz]):
+        rotation = {'RX': rx, 'RY': ry, 'RZ': rz}
+    
+    center_txt_points3d(input_file, output_file, rotation=rotation)
+    click.echo(f"Written transformed point cloud to {output_file}")
+
+import click
+import shutil
+from pathlib import Path
+
+@cli.command()
+@click.option("--input-folder", "-i", type=click.Path(exists=True, file_okay=False), required=True, help="Input COLMAP TXT model folder")
+@click.option("--output-folder", "-o", type=click.Path(file_okay=False), required=True, help="Output folder for transformed model")
+@click.option("--scale", default=1.0, show_default=True, help="Uniform scaling factor")
+@click.option("--rx", default=0.0, show_default=True, help="Rotation around X axis in degrees")
+@click.option("--ry", default=0.0, show_default=True, help="Rotation around Y axis in degrees")
+@click.option("--rz", default=0.0, show_default=True, help="Rotation around Z axis in degrees")
+@click.option("--tx", default=0.0, show_default=True, help="Translation along X axis")
+@click.option("--ty", default=0.0, show_default=True, help="Translation along Y axis")
+@click.option("--tz", default=0.0, show_default=True, help="Translation along Z axis")
+def transform_for_gsplat(input_folder, output_folder, scale, rx, ry, rz, tx, ty, tz):
+    """
+    Apply scale, rotation (degrees), and translation to COLMAP model
+    (points3D.txt + images.txt), and copy cameras.txt to output folder.
+    """
+    input_folder = Path(input_folder)
+    output_folder = Path(output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    rotation = {'rx': rx, 'ry': ry, 'rz': rz}
+    translation = {'tx': tx, 'ty': ty, 'tz': tz}
+
+    # Build the same transformation matrix
+    transform_matrix = build_transform_matrix(scale, rotation, translation)
+
+    # Transform points3D.txt
+    input_points_file = input_folder / "points3D.txt"
+    output_points_file = output_folder / "points3D.txt"
+    transform_points3D_txt(input_points_file, output_points_file, transform_matrix)
+    click.echo(f"Transformed points3D.txt -> {output_points_file}")
+
+    add_axes( output_points_file )
+
+    # Transform images.txt
+    input_images_file = input_folder / "images.txt"
+    output_images_file = output_folder / "images.txt"
+    transform_images_txt(input_images_file, output_images_file, transform_matrix)
+    click.echo(f"Transformed images.txt -> {output_images_file}")
+
+    # Copy cameras.txt
+    input_cameras_file = input_folder / "cameras.txt"
+    output_cameras_file = output_folder / "cameras.txt"
+    shutil.copy2(input_cameras_file, output_cameras_file)
+    click.echo(f"Copied cameras.txt -> {output_cameras_file}")
+
+    # Provide blender camera coordinates for getting proper rotation data
+    compute_blender_camera_transform( output_images_file )
+    click.echo("✅ Done transforming COLMAP model.")
+
+
+
 if __name__ == "__main__":
     cli()
-

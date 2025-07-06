@@ -13,20 +13,11 @@ title: ""
 </div>
 
 
-<div class="splat-block">
-<h3>Gaussian Splat: Model 0 (iteration_5000)</h3>
-<div class="splat-wrapper">
-<canvas id="splat_viewer_hanuman_0_iteration_5000" class="splat-canvas"></canvas>
-</div>
-</div>
-
-
 
 <script type="module">
 import { loadSplatViewer } from "../js/splat_viewer.js";
 
 loadSplatViewer("splat_viewer_hanuman_0_iteration_15000", "../data/hanuman/0-iteration_15000-gsplat-point_cloud.splat");
-loadSplatViewer("splat_viewer_hanuman_0_iteration_5000", "../data/hanuman/0-iteration_5000-gsplat-point_cloud.splat");
 </script>
 
 

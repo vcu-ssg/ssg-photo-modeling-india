@@ -188,7 +188,7 @@ endef
 
 define recipe-colmap-model-transformer
 	echo ">>> Checking for transform string override..."; \
-	TRANSFORM_STRING="$($(call ELEM5,$(@),2).transform)"; \
+	TRANSFORM_STRING="$($(call ELEM5,$(@),2).colmap.transform)"; \
 	if [ -n "$$TRANSFORM_STRING" ]; then \
 		echo "Transform string for $(call ELEM5,$(@),2): $$TRANSFORM_STRING"; \
 	else \
@@ -211,6 +211,31 @@ define recipe-colmap-model-transformer
 	mv $(@)/0 $(@)/0_before_transform; \
 	echo ">>> Moving aligned model to $(@)/0"; \
 	mv $(@)/0_aligned $(@)/0
+endef
+
+define recipe-colmap-center-and-rotate
+	echo ">>> Moving existing model to $(@)/0_before_center"; \
+	rm -fr $(@)/0_before_center ; \
+	mv $(@)/0 $(@)/0_before_center; \
+	mkdir -p $(@)/0 ; \
+	echo ">>> Converting $(@)/0_before_center from BIN to TXT into $(@)/0"; \
+	docker compose -f ./docker/docker-compose.yml run --rm --user 1000:1000 colmap \
+	colmap model_converter \
+		--input_path /$(@)/0_before_center \
+		--output_path /$(@)/0 \
+		--output_type TXT; \
+	mv $(@)/0/points3D.txt $(@)/0/points3D-before.txt ; \
+	echo ">>> Running centering and rotation on TXT model"; \
+	poetry run python scripts/cli.py center-and-rotate \
+		--input-file=$(@)/0/points3D-before.txt \
+		--output-file=$(@)/0/points3D.txt; \
+	echo ">>> Converting centered/rotated TXT back to BIN in the same folder"; \
+	docker compose -f ./docker/docker-compose.yml run --rm --user 1000:1000 colmap \
+	colmap model_converter \
+		--input_path /$(@)/0 \
+		--output_path /$(@)/0 \
+		--output_type BIN; \
+	echo ">>> Done. Model is centered and rotated, stored in $(@)/0"
 endef
 
 
@@ -322,9 +347,9 @@ define recipe-colmap-model
 	$(call recipe-colmap-sequential-matcher,$$MATCH_OPTS); \
 	$(call recipe-colmap-mapper,$$MAPPER_OPTS); \
 	$(recipe-colmap-model-converter); \
-	$(recipe-colmap-model-transformer); \
-	$(recipe-colmap-model-converter); \
 	$(call recipe-colmap-pointfilter,$$POINTFILTER_OPTS); \
+	$(recipe-colmap-model-converter); \
+	$(recipe-colmap-center-and-rotate); \
 	$(recipe-colmap-model-converter); \
 	$(recipe-add-normals-to-ply); \
 	$(recipe-colmap-complete-folders); \

@@ -1682,6 +1682,17 @@ files = [
 ]
 
 [[package]]
+name = "mathutils"
+version = "3.3.0"
+description = "A general math utilities library providing Matrix, Vector, Quaternion, Euler and Color classes, written in C for speed."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "mathutils-3.3.0.tar.gz", hash = "sha256:b9371af8149f3f3f05ee165cb583b2df7b3fbc9935406d1c505a5276b8e563af"},
+]
+
+[[package]]
 name = "matplotlib"
 version = "3.10.3"
 description = "Python plotting package"
@@ -3937,4 +3948,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "b1db8c347d4cd997b07f7101471f9db2a177ad0dac96e1daa0232da8a8a0bb39"
+content-hash = "577ce8344d0d5407ee133f7d9189a4c4022fb762467f04e0c45e0495d1c676b6"
