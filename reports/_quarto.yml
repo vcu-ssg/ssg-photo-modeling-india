@@ -9,8 +9,6 @@ website:
   search: false
   navbar:
     left:
-      - href: videos.qmd
-        text: Videos
       - href: prj/index.qmd
         text: Pipelines
 

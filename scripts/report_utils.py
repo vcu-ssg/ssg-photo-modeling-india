@@ -59,9 +59,12 @@ def write_index_qmd(tree, destination_folder, data_folder):
     lines.append("---")
     lines.append("title: \"\"")
     lines.append("---\n")
+    
+    lines.append("# Listing of projects\n")
 
-    lines.append("# Listing of pipelines\n")
-
+    lines.append("""
+<link href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.7/viewer.min.css" rel="stylesheet" />
+""")
     for project in sorted(tree.keys()):
         #if not project.startswith("DJI"):
         #    continue
@@ -100,7 +103,9 @@ def write_index_qmd(tree, destination_folder, data_folder):
         else:
             mvs_table = "No mvs models"
 
-        
+        if "images" in tree[project]:
+            image_id = f"{project}.image.player"
+
         lines.append(f"## [{project}]({project}.html)")
         lines.append(f"""
 :::: {{.columns}}
@@ -110,8 +115,7 @@ def write_index_qmd(tree, destination_folder, data_folder):
 {df.to_markdown(index=False)}
 
 :::
-::: {{.column width=50% .threejs-container}}
-{project}
+::: {{.column id={image_id} style="margin:auto; border:1px solid #ccc;"}}
 :::
 ::::
 
@@ -143,6 +147,30 @@ def write_index_qmd(tree, destination_folder, data_folder):
 ::::
 
 
+""")
+
+    lines.append(f"""
+<script type="module">
+
+import {{ loadImageViewer }} from "../js/image_viewer.js";
+""")
+    for project in sorted(tree.keys()):
+        image_id = f"{project}.image.player"
+        
+        lines.append(f"""
+  const images_{project} = [
+""")
+
+        for image in tree[project]["images"]["__files__"]:
+            lines.append(f"'../data/{project}/images/{image}',")
+    
+    lines.append(f"""
+  ];
+loadImageViewer("{image_id}",images_{project})
+""")
+        
+    lines.append(f"""
+</script>
 """)
 
     index_file = dest / "index.qmd"

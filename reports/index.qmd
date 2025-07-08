@@ -1,9 +1,10 @@
 ---
-title: Greenbank Telescope Photogrammetry
+title: ""
 ---
 
+# Photo modeling archive
 
-[Videos](videos.qmd) - provides a listing of videos captured at the Greenbank Observatory
+This site tracks various photogrammetric models.
 
-[Pipelines](prj/index.qmd) - provides a listing of the different analysis pipelines conducted using the videos.
+[Sources](prj/index.qmd) - provides a listing of individual analysis pipelinee.  Pipelines start with folders of images.
 
